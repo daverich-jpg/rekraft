@@ -45,7 +45,6 @@ export function OverlayUI() {
         <div className={heroOn ? 'pointer-events-auto' : ''}>
           <AuthButtons />
         </div>
-        <p className="-mt-3 text-[12px] leading-4 tracking-[0.01em] text-black/40">Drag to wander · click a photo to look closer</p>
       </section>
 
       {/* Header — takes over once you leave the landing */}

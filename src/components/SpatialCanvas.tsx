@@ -13,6 +13,8 @@ import {
   getUI,
   neighbour,
   rig,
+  setCursor,
+  setCursorEl,
   setUI,
   useUI,
 } from '../lib/rig'
@@ -44,6 +46,12 @@ export function setMode(mode: 'plane' | 'sphere') {
   setUI({ mode, focus: -1, explored: getUI().explored || mode === 'sphere' })
 }
 
+/** First real input: drop the demo nudge (and any half-played offset). */
+function cancelNudge() {
+  rig.touched = true
+  if (rig.time > 1.9 && rig.time < 2.45) rig.panTarget.x -= 0.7
+}
+
 const markExplored = () => {
   if (rig.panTarget.length() > 0.6 || Math.abs(rig.zoomTarget) > 0.3) setUI({ explored: true })
 }
@@ -73,6 +81,16 @@ function Rig() {
     const dt = Math.min(rawDt, 0.1)
     const { mode, focus } = getUI()
     const rm = rig.reducedMotion
+
+    // The demo nudge: once the prints have landed, the field drifts a little
+    // and springs home, like a carousel peeking. It plays once, only for a
+    // visitor who hasn't touched anything, and ends exactly on the Figma frame.
+    const before = rig.time
+    rig.time += dt
+    if (!rm && !rig.touched && focus < 0) {
+      if (before < 1.9 && rig.time >= 1.9) rig.panTarget.x += 0.7
+      if (before < 2.45 && rig.time >= 2.45) rig.panTarget.x -= 0.7
+    }
     const sphere = mode === 'sphere' ? 1 : 0
 
     damp(rig, 'blend', sphere, rm ? 0.15 : 0.7, dt)
@@ -200,8 +218,9 @@ export function SpatialCanvas() {
       lt = now
       rig.dragDist += Math.hypot(dx, dy)
       if (rig.dragDist <= CLICK_SLOP) return
+      if (!rig.touched) cancelNudge()
       if (getUI().focus >= 0) unfocus()
-      document.body.style.cursor = 'grabbing'
+      setCursor('grabbing')
       const ux = -dx / unit()
       const uy = dy / unit()
       rig.panTarget.x += ux
@@ -216,7 +235,7 @@ export function SpatialCanvas() {
       if (!dragging) return
       dragging = false
       if (rig.dragDist > CLICK_SLOP) {
-        document.body.style.cursor = ''
+        setCursor('grab')
         // Release with momentum unless the pointer had already stopped.
         if (!rig.reducedMotion && performance.now() - lt < 80) {
           const speed = Math.hypot(vel.x, vel.y)
@@ -229,6 +248,7 @@ export function SpatialCanvas() {
     }
     const wheel = (e: WheelEvent) => {
       e.preventDefault()
+      if (!rig.touched) cancelNudge()
       if (getUI().focus >= 0) unfocus()
       const scaleDelta = e.deltaMode === 1 ? 16 : 1
       if (e.ctrlKey || e.metaKey) {
@@ -250,6 +270,7 @@ export function SpatialCanvas() {
         ArrowDown: 'down',
       }
       const dir = dirs[e.key]
+      if (!rig.touched) cancelNudge()
       if (dir) {
         e.preventDefault()
         if (focus >= 0) focusCard(neighbour(focus, dir))
@@ -311,7 +332,10 @@ export function SpatialCanvas() {
         frameloop={MANUAL_CLOCK ? 'never' : 'always'}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         camera={{ fov: PLANE_FOV, near: 0.1, far: 200, position: [0, 0, 11.43] }}
-        onCreated={({ gl }) => gl.setClearColor('#ffffff')}
+        onCreated={({ gl }) => {
+          gl.setClearColor('#ffffff')
+          setCursorEl(gl.domElement)
+        }}
         onPointerMissed={() => {
           if (rig.dragDist <= CLICK_SLOP && getUI().focus >= 0) unfocus()
         }}

@@ -4,7 +4,7 @@ import { damp } from 'maath/easing'
 import { Group, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three'
 import type { Card } from '../data/photos'
 import { createCardMaterial } from '../lib/cardMaterial'
-import { CLICK_SLOP, cardTransform, rig } from '../lib/rig'
+import { CLICK_SLOP, cardTransform, rig, setCursor } from '../lib/rig'
 import { imageAspect, loadTexture } from '../lib/textures'
 
 const PLANE = new PlaneGeometry(1, 1)
@@ -24,6 +24,8 @@ export function ImageCard({ card, focused, dimmed, onSelect }: Props) {
   const material = useMemo(() => createCardMaterial(card.w / card.h, card.crop), [card])
   const loadedTarget = useRef(0)
   const hover = useRef(0)
+  // Arrival order: centre outward, so the composition assembles around the hero.
+  const delay = 0.12 + Math.min(Math.hypot(card.lx, card.ly * 1.4), 30) * 0.035
 
   useEffect(() => () => material.dispose(), [material])
 
@@ -48,15 +50,21 @@ export function ImageCard({ card, focused, dimmed, onSelect }: Props) {
 
   useFrame((_, dt) => {
     const scale = cardTransform(card, _p, _q)
+    // Show, don't tell: prints rise out of depth into place on arrival,
+    // which says "this is a 3D space" before any instruction could.
+    const a = rig.reducedMotion ? 1 : Math.min(1, Math.max(0, (rig.time - delay) / 1.1))
+    const rise = 1 - Math.pow(1 - a, 4) // easeOutQuart
     group.current.position.copy(_p)
+    group.current.position.z -= (1 - rise) * 7
     group.current.quaternion.copy(_q)
+    group.current.visible = a > 0
 
     const u = material.uniforms
     const fast = rig.reducedMotion ? 0.05 : 0.18
     damp(hover, 'current', rig.hovered === card.id && !dimmed ? 1 : 0, fast, dt)
     damp(u.uHover, 'value', hover.current, 0.001, dt)
     damp(u.uLoaded, 'value', loadedTarget.current, 0.35, dt)
-    damp(u.uOpacity, 'value', dimmed ? 0.1 : 1, 0.3, dt)
+    damp(u.uOpacity, 'value', (dimmed ? 0.1 : 1) * Math.min(1, a * 2.2), 0.08, dt)
 
     const m = mesh.current
     m.scale.set(card.w * scale * (1 + 0.035 * hover.current), card.h * scale * (1 + 0.035 * hover.current), 1)
@@ -71,11 +79,11 @@ export function ImageCard({ card, focused, dimmed, onSelect }: Props) {
   const over = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
     rig.hovered = card.id
-    document.body.style.cursor = focused ? 'zoom-out' : 'zoom-in'
+    setCursor(focused ? 'zoom-out' : 'zoom-in')
   }
   const out = () => {
     if (rig.hovered === card.id) rig.hovered = -1
-    document.body.style.cursor = ''
+    setCursor('grab')
   }
   const click = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()

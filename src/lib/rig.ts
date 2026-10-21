@@ -32,6 +32,20 @@ export const rig = {
   scale: 1,
   hovered: -1,
   reducedMotion: false,
+  /** seconds since the canvas started; drives the arrival + nudge */
+  time: 0,
+  /** any pan/zoom input yet? the demo nudge only plays for untouched visitors */
+  touched: false,
+}
+
+/** Cursor lives on the canvas element, so it can't fight the DOM overlay. */
+let cursorEl: HTMLElement | null = null
+export const setCursorEl = (el: HTMLElement) => {
+  cursorEl = el
+  el.style.cursor = 'grab'
+}
+export const setCursor = (c: 'grab' | 'grabbing' | 'zoom-in' | 'zoom-out') => {
+  if (cursorEl) cursorEl.style.cursor = c
 }
 
 export const CLICK_SLOP = 6
